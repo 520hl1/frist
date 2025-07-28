@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>演练计划管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container { max-width: 1200px; margin: 0 auto; }
+        .form-container { padding: 20px; background: #f8f9fa; border-radius: 8px; }
+        .status-tag { padding: 2px 8px; border-radius: 4px; font-size: 0.875rem; }
+        .invalid-feedback { display: block; }
+        .form-control-file { margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-4 mb-4">演练计划管理系统</h1>
+
+    <!-- 新增按钮 -->
+    <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addModal">
+        新增演练计划
+    </button>
+
+    <!-- 数据表格 -->
+    <div class="table-container">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>计划编号</th>
+                <th>所属项目</th>
+                <th>负责部门</th>
+                <th>演练原因</th>
+                <th>演练时间</th>
+                <th>状态</th>
+                <th>创建人</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="planTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- 新增/编辑模态框 -->
+    <div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">新增演练计划</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <form id="planForm" class="px-4 py-3 needs-validation" enctype="multipart/form-data" novalidate>
+                    <input type="hidden" id="id">
+                    <input type="hidden" id="createBy"> <!-- 创建人由后端自动填充，前端隐藏字段 -->
+
+                    <!-- 新增：所属项目 -->
+                    <div class="mb-3">
+                        <label for="projectId" class="form-label">所属项目 <span class="text-danger">*</span></label>
+                        <select class="form-control" id="projectId" required>
+                            <option value="">请选择项目</option>
+                        </select>
+                        <div class="invalid-feedback">请选择所属项目</div>
+                    </div>
+
+                    <!-- 新增：演练原因 -->
+                    <div class="mb-3">
+                        <label for="drillReason" class="form-label">演练原因 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="drillReason" rows="2" required></textarea> <!-- 新增字段 -->
+                        <div class="invalid-feedback">请输入演练原因</div>
+                    </div>
+
+                    <!-- 新增：计划编号 -->
+                    <div class="mb-3">
+                        <label for="planCode" class="form-label">计划编号 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="planCode" required>
+                        <div class="invalid-feedback">请输入计划编号</div>
+                    </div>
+
+                    <!-- 新增：负责部门 -->
+                    <div class="mb-3">
+                        <label for="deptId" class="form-label">负责部门 <span class="text-danger">*</span></label>
+                        <select class="form-control" id="deptId" required>
+                            <option value="">请选择部门</option>
+                        </select>
+                        <div class="invalid-feedback">请选择负责部门</div>
+                    </div>
+
+                    <!-- 新增：演练内容 -->
+                    <div class="mb-3">
+                        <label for="drillContent" class="form-label">演练内容 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="drillContent" rows="3" required></textarea>
+                        <div class="invalid-feedback">请输入演练内容</div>
+                    </div>
+
+                    <!-- 新增：参演人员 -->
+                    <div class="mb-3">
+                        <label for="drillPersons" class="form-label">参演人员 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="drillPersons" required>
+                        <div class="invalid-feedback">请输入参演人员</div>
+                    </div>
+
+                    <!-- 新增：影响范围 -->
+                    <div class="mb-3">
+                        <label for="impactScope" class="form-label">影响范围 <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="impactScope" rows="2" required></textarea>
+                        <div class="invalid-feedback">请输入影响范围</div>
+                    </div>
+
+                    <!-- 新增：配合部门 -->
+                    <div class="mb-3">
+                        <label for="cooperateDepts" class="form-label">配合部门 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="cooperateDepts" required>
+                        <div class="invalid-feedback">请输入配合部门</div>
+                    </div>
+
+                    <!-- 新增：演练时间 -->
+                    <div class="mb-3">
+                        <label for="drillTime" class="form-label">演练时间 <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control" id="drillTime" required>
+                        <div class="invalid-feedback">请选择演练时间</div>
+                    </div>
+
+                    <!-- 新增：计划文件（文件上传） -->
+                    <div class="mb-3">
+                        <label for="drillPlanFile" class="form-label">演练计划文件</label>
+                        <input type="file" class="form-control-file" id="drillPlanFile">
+                    </div>
+
+                    <!-- 新增：状态 -->
+                    <div class="mb-3">
+                        <label for="status" class="form-label">状态 <span class="text-danger">*</span></label>
+                        <select class="form-control" id="status" required>
+                            <option value="">请选择状态</option>
+                            <option value="0">草稿</option>
+                            <option value="1">已发布</option>
+                            <option value="2">已完成</option>
+                        </select>
+                        <div class="invalid-feedback">请选择状态</div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 引入JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
+<script>
+    const API_URL = "http://localhost:8080/emergency-drill/api/drillPlan";
+    const PROJECT_API_URL = "http://localhost:8080/emergency-drill/api/drillProject";
+    const DEPT_API_URL = "http://localhost:8080/emergency-drill/api/departments";
+    const USER_API_URL = "http://localhost:8080/emergency-drill/api/sysUser";
+
+    let editMode = false;
+    let projects = [];
+    let departments = [];
+    let users = [];
+
+    // 创建 axios 实例并设置全局请求头
+    const axiosInstance = axios.create();
+    const token = localStorage.getItem('token');
+
+    if (token) {
+        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+        console.warn("未找到 token，部分请求可能失败");
+    }
+
+    // 响应拦截器
+    axiosInstance.interceptors.response.use(
+        (response) => response,
+        (error) => {
+            console.error("请求错误:", error);
+            if (error.response?.status === 401) {
+                alert('登录态失效，请重新登录');
+                localStorage.clear();
+                window.location.href = 'login.html';
+            } else {
+                alert(`请求失败: ${error.message}`);
+            }
+            return Promise.reject(error);
+        }
+    );
+
+    // 加载基础数据（优化数据解析逻辑）
+    function loadAllData() {
+        Promise.all([
+            axiosInstance.get(PROJECT_API_URL + "/list"),
+            axiosInstance.get(DEPT_API_URL),
+            axiosInstance.get(USER_API_URL + "/list")
+        ]).then(([projectRes, deptRes, userRes]) => {
+            console.log("项目数据:", projectRes.data);
+            console.log("部门数据:", deptRes.data);
+            console.log("用户数据:", userRes.data);
+
+            // 优化数据解析逻辑，兼容多种可能的返回格式
+            projects = parseData(projectRes.data, 'records');
+            departments = parseData(deptRes.data, 'data');
+            users = parseData(userRes.data, 'records');
+
+            // 填充下拉框
+            populateSelect("projectId", projects, "id", "projectName");
+            populateSelect("deptId", departments, "id", "deptName");
+
+        }).catch(error => {
+            console.error("基础数据加载失败:", error);
+            alert("基础数据加载失败，请刷新页面");
+        });
+    }
+
+    // 通用数据解析函数
+    function parseData(apiResponse, dataKey) {
+        if (!apiResponse) return [];
+
+        // 情况1: 数据直接在根对象的指定key下
+        if (apiResponse[dataKey] && Array.isArray(apiResponse[dataKey])) {
+            return apiResponse[dataKey];
+        }
+
+        // 情况2: 数据在根对象的data字段下的指定key下
+        if (apiResponse.data && apiResponse.data[dataKey] && Array.isArray(apiResponse.data[dataKey])) {
+            return apiResponse.data[dataKey];
+        }
+
+        // 情况3: 数据直接在根对象的data字段下（数组）
+        if (apiResponse.data && Array.isArray(apiResponse.data)) {
+            return apiResponse.data;
+        }
+
+        // 情况4: 数据直接是数组
+        if (Array.isArray(apiResponse)) {
+            return apiResponse;
+        }
+
+        console.warn(`无法解析数据格式，返回空数组。原始数据:`, apiResponse);
+        return [];
+    }
+
+    // 通用下拉框填充函数
+    function populateSelect(elementId, data, valueField, textField) {
+        const select = document.getElementById(elementId);
+        select.innerHTML = '<option value="">请选择</option>';
+
+        data.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item[valueField];
+            option.textContent = item[textField];
+            select.appendChild(option);
+        });
+    }
+
+    // 初始化表格
+    function initTable() {
+        axiosInstance.get(API_URL + "/list")
+            .then(response => {
+                const plans = parseData(response.data, 'records');
+                renderTable(plans);
+            })
+            .catch(error => {
+                console.error("加载表格数据失败:", error);
+                alert("加载数据失败，请检查网络");
+            });
+    }
+
+    // 渲染表格（新增演练原因列）
+    function renderTable(plans) {
+        const tbody = document.getElementById("planTableBody");
+        tbody.innerHTML = "";
+
+        plans.forEach(plan => {
+            const projectName = findName(projects, plan.projectId, "id", "projectName");
+            const deptName = findName(departments, plan.deptId, "id", "deptName");
+            const createByName = findName(users, plan.createBy, "id", "userName");
+            const statusText = ["草稿", "已发布", "已完成"][plan.status] || "未知";
+
+            tbody.innerHTML += `
+                <tr data-plan-id="${plan.id}">
+                    <td>${plan.id}</td>
+                    <td>${plan.planCode}</td>
+                    <td>${projectName}</td>
+                    <td>${deptName}</td>
+                    <td>${plan.drillReason}</td> <!-- 新增表格数据 -->
+                    <td>${formatDateTime(plan.drillTime)}</td>
+                    <td><span class="status-tag bg-${getStatusColor(plan.status)}">${statusText}</span></td>
+                    <td>${createByName}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info me-2 edit-btn">编辑</button>
+                        <button class="btn btn-sm btn-danger delete-btn">删除</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    // 表格事件委托
+    document.getElementById('planTableBody').addEventListener('click', (e) => {
+        const target = e.target;
+        if (target.classList.contains('edit-btn')) {
+            const planId = target.closest('tr').dataset.planId;
+            editPlan(Number(planId));
+        } else if (target.classList.contains('delete-btn')) {
+            const planId = target.closest('tr').dataset.planId;
+            deletePlan(Number(planId));
+        }
+    });
+
+    // 查找名称的辅助函数
+    function findName(dataArray, id, idField, nameField) {
+        if (!dataArray || !id) return "未知";
+        const item = dataArray.find(item => item[idField] === id);
+        return item ? item[nameField] : "未知";
+    }
+
+    // 格式化日期时间
+    function formatDateTime(dateTime) {
+        if (!dateTime) return "";
+        return new Date(dateTime).toLocaleString();
+    }
+
+    // 获取状态颜色
+    function getStatusColor(status) {
+        const colors = ["secondary", "primary", "success"];
+        return colors[status] || "dark";
+    }
+
+    // 编辑计划（新增演练原因填充）
+    function editPlan(id) {
+        axiosInstance.get(`${API_URL}/get/${id}`)
+            .then(response => {
+                const plan = response.data.data || response.data;
+                if (!plan) return alert("计划不存在");
+
+                document.getElementById("id").value = plan.id;
+                document.getElementById("projectId").value = plan.projectId || '';
+                document.getElementById("planCode").value = plan.planCode || '';
+                document.getElementById("deptId").value = plan.deptId || '';
+                document.getElementById("drillReason").value = plan.drillReason || '';
+                document.getElementById("drillContent").value = plan.drillContent || '';
+                document.getElementById("drillPersons").value = plan.drillPersons || '';
+                document.getElementById("impactScope").value = plan.impactScope || '';
+                document.getElementById("cooperateDepts").value = plan.cooperateDepts || '';
+
+                // 处理日期时间格式
+                if (plan.drillTime) {
+                    let formattedTime = plan.drillTime;
+                    if (typeof plan.drillTime === 'object') {
+                        formattedTime = new Date(plan.drillTime).toISOString().split('T')[0] +
+                            'T' + new Date(plan.drillTime).toTimeString().split(' ')[0];
+                    }
+                    document.getElementById("drillTime").value = formattedTime;
+                }
+
+                document.getElementById("status").value = plan.status || '';
+                editMode = true;
+
+                // 使用Bootstrap官方方法显示模态框
+                const modal = new bootstrap.Modal(document.getElementById('addModal'));
+                document.getElementById("modalTitle").textContent = "编辑演练计划";
+                modal.show();
+            })
+            .catch(error => {
+                console.error("获取计划详情失败:", error);
+                alert("获取数据失败，请重试");
+            });
+    }
+
+    // 表单提交（修改为直接添加字段到FormData）
+    document.getElementById("planForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        if (!this.checkValidity()) return;
+
+        const formData = new FormData();
+
+        // 编辑模式下添加id
+        if (editMode) {
+            formData.append('id', document.getElementById("id").value);
+        }
+
+        // 添加其他字段
+        formData.append('projectId', document.getElementById("projectId").value);
+        formData.append('planCode', document.getElementById("planCode").value);
+        formData.append('deptId', document.getElementById("deptId").value);
+        formData.append('drillReason', document.getElementById("drillReason").value);
+        formData.append('drillContent', document.getElementById("drillContent").value);
+        formData.append('drillPersons', document.getElementById("drillPersons").value);
+        formData.append('impactScope', document.getElementById("impactScope").value);
+        formData.append('cooperateDepts', document.getElementById("cooperateDepts").value);
+        formData.append('drillTime', document.getElementById("drillTime").value);
+        formData.append('status', document.getElementById("status").value);
+
+        // 添加文件
+        const fileInput = document.getElementById("drillPlanFile");
+        if (fileInput.files.length > 0) {
+            formData.append('drillPlanFile', fileInput.files[0]);
+        }
+
+        const method = editMode ? "put" : "post";
+        const url = editMode ? `${API_URL}/update` : `${API_URL}/add`;
+
+        axiosInstance({
+            method: method,
+            url: url,
+            data: formData,
+            headers: {
+                'Content-Type': undefined
+            }
+        })
+            .then(() => {
+                alert(editMode ? "更新成功" : "创建成功");
+                resetForm();
+                initTable();
+            })
+            .catch(error => {
+                console.error("提交失败:", error);
+                const errorMsg = error.response?.data?.message || "操作失败，请重试";
+                alert(errorMsg);
+            });
+    });
+
+    // 删除计划
+    function deletePlan(id) {
+        if (!confirm("确定要删除此计划吗？")) return;
+
+        axiosInstance.delete(`${API_URL}/delete/${id}`)
+            .then(() => {
+                alert("删除成功");
+                initTable();
+            })
+            .catch(error => {
+                console.error("删除失败:", error);
+                alert("删除失败，请检查权限");
+            });
+    }
+
+    // 重置表单
+    function resetForm() {
+        document.getElementById("planForm").reset();
+        editMode = false;
+        document.getElementById("modalTitle").textContent = "新增演练计划";
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addModal'));
+        if (modal) modal.hide();
+    }
+
+    // 页面加载初始化
+    window.onload = () => {
+        loadAllData();
+        initTable();
+    };
+</script>
+</body>
+</html>

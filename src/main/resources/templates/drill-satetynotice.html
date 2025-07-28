@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>演练安全须知管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container { max-width: 1200px; margin: 0 auto; }
+        .form-container { padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px; }
+        .table-container { margin-top: 20px; }
+        .status-tag {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .status-active { background-color: #28a745; color: white; }
+        .status-inactive { background-color: #dc3545; color: white; }
+        .file-preview { margin-top: 10px; }
+        /* 校验样式 */
+        .invalid-feedback { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-4 mb-4">演练安全须知管理</h1>
+
+    <!-- 新增/编辑表单 -->
+    <div class="form-container">
+        <button
+                type="button"
+                class="btn btn-primary mb-3"
+                data-bs-toggle="modal"
+                data-bs-target="#noticeModal"
+                onclick="handleNewNotice()"
+        >
+            新增安全须知
+        </button>
+
+        <!-- 安全须知模态框 -->
+        <div class="modal fade" id="noticeModal" tabindex="-1" aria-labelledby="noticeModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <form id="noticeForm" enctype="multipart/form-data" class="px-4 py-3 needs-validation" novalidate>
+                        <input type="hidden" id="id">
+                        <input type="hidden" name="createBy" value="admin"> <!-- 后续需改为动态用户 -->
+
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="noticeModalLabel">安全须知管理</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="noticeTitle" class="form-label">须知标题</label>
+                                <input
+                                        type="text"
+                                        class="form-control"
+                                        id="noticeTitle"
+                                        required
+                                        placeholder="请输入标题"
+                                        minlength="3"
+                                        maxlength="50"
+                                >
+                                <div class="invalid-feedback">请输入3-50字的标题</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="noticeContent" class="form-label">须知内容</label>
+                                <textarea
+                                        class="form-control"
+                                        id="noticeContent"
+                                        rows="5"
+                                        required
+                                        placeholder="请输入详细内容"
+                                        minlength="10"
+                                ></textarea>
+                                <div class="invalid-feedback">请输入至少10字的内容</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="voiceFile" class="form-label">语音文件（可选）</label>
+                                <input
+                                        type="file"
+                                        class="form-control"
+                                        id="voiceFile"
+                                        accept="audio/*"
+                                >
+                                <div class="file-preview" id="voicePreview"></div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="duration" class="form-label">语音时长（分钟）</label>
+                                <input
+                                        type="number"
+                                        class="form-control"
+                                        id="duration"
+                                        min="1"
+                                        max="1440"
+                                        placeholder="请输入时长（默认60分钟）"
+                                        value="60"
+                                >
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="isActive" class="form-label">状态</label>
+                                <select
+                                        class="form-control"
+                                        id="isActive"
+                                        required
+                                >
+                                    <option value="">请选择状态</option>
+                                    <option value="1">启用</option>
+                                    <option value="0">禁用</option>
+                                </select>
+                                <div class="invalid-feedback">请选择状态</div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据表格 -->
+    <div class="table-container">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>标题</th>
+                <th>内容</th>
+                <th>语音文件</th>
+                <th>时长</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="noticeTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- 引入 JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
+    <script>
+        // ----------------------
+        // 全局配置（复用用户管理的认证逻辑）
+        // ----------------------
+        const CONTEXT_PATH = '/emergency-drill';
+        const API_URL = `http://localhost:8080${CONTEXT_PATH}/api`;
+        const NOTICE_API_URL = `${API_URL}/drillSafetyNotice`; // 安全须知接口路径
+
+        // ----------------------
+        // 登录态校验 & 全局请求头
+        // ----------------------
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('请先登录');
+            window.location.href = `${CONTEXT_PATH}/login.html`; // 跳转登录页
+        } else {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; // 设置全局 Token 头
+        }
+
+        // ----------------------
+        // 响应拦截器：处理 401 错误（复用用户管理逻辑）
+        // ----------------------
+        axios.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401) {
+                    alert('登录态失效，请重新登录');
+                    localStorage.clear(); // 清除失效凭证
+                    window.location.href = `${CONTEXT_PATH}/login.html`;
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        // ----------------------
+        // 页面初始化逻辑
+        // ----------------------
+        window.onload = () => {
+            loadNotices(); // 加载安全须知列表
+        };
+
+        // ----------------------
+        // 加载安全须知列表
+        // ----------------------
+        function loadNotices() {
+            axios.get(NOTICE_API_URL + "/list")
+                .then(response => {
+                    const tbody = document.getElementById("noticeTableBody");
+                    tbody.innerHTML = "";
+                    response.data.forEach(notice => {
+                        tbody.appendChild(createNoticeRow(notice));
+                    });
+                })
+                .catch(error => {
+                    console.error("加载数据失败:", error);
+                    if (error.response?.status === 401) {
+                        // 额外处理：避免重复提示（响应拦截器已处理）
+                        return;
+                    }
+                    alert("数据加载失败，请检查网络连接");
+                });
+        }
+
+        // ----------------------
+        // 创建表格行（与用户管理保持风格一致）
+        // ----------------------
+        function createNoticeRow(notice) {
+            const row = document.createElement("tr");
+            const statusClass = notice.isActive === 1 ? "status-active" : "status-inactive";
+            const statusText = notice.isActive === 1 ? "启用" : "禁用";
+            const fileName = notice.voiceFile ? notice.voiceFile.split("/").pop() : "无";
+
+            row.innerHTML = `
+                <td>${notice.id}</td>
+                <td>${notice.noticeTitle}</td>
+                <td>${notice.noticeContent.length > 50 ? notice.noticeContent.slice(0, 50) + "..." : notice.noticeContent}</td>
+                <td>
+                    ${fileName !== "无" ?
+                `<a href="${notice.voiceFile}" target="_blank" class="text-primary">${fileName}</a>` :
+                "<span class='text-muted'>无</span>"
+            }
+                </td>
+                <td>${notice.duration} 分钟</td>
+                <td><span class="status-tag ${statusClass}">${statusText}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-info me-2" onclick="editNotice(${notice.id})">编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteNotice(${notice.id})">删除</button>
+                </td>
+            `;
+            return row;
+        }
+
+        // ----------------------
+        // 打开新增/编辑模态框
+        // ----------------------
+        function handleNewNotice(id) {
+            const modal = new bootstrap.Modal(document.getElementById("noticeModal"));
+            const form = document.getElementById("noticeForm");
+            form.reset();
+            document.getElementById("isActive").value = "";
+            document.getElementById("duration").value = 60;
+            document.getElementById("voicePreview").innerHTML = "";
+            editMode = false;
+
+            if (id) { // 编辑模式
+                editMode = true;
+                axios.get(NOTICE_API_URL + "/get/" + id)
+                    .then(response => {
+                        const notice = response.data;
+                        document.getElementById("id").value = notice.id;
+                        document.getElementById("noticeTitle").value = notice.noticeTitle;
+                        document.getElementById("noticeContent").value = notice.noticeContent;
+                        document.getElementById("duration").value = notice.duration;
+                        document.getElementById("isActive").value = notice.isActive.toString();
+
+                        // 显示已有文件
+                        if (notice.voiceFile) {
+                            const fileName = notice.voiceFile.split("/").pop();
+                            document.getElementById("voicePreview").innerHTML = `
+                                <div class="mt-2">
+                                    <span class="text-muted">当前文件: ${fileName}</span>
+                                    <button
+                                        type="button"
+                                        class="btn btn-sm btn-danger ms-2"
+                                        onclick="clearFile()"
+                                    >
+                                        移除文件
+                                    </button>
+                                </div>
+                            `;
+                        }
+                    })
+                    .catch(error => {
+                        console.error("获取数据失败:", error);
+                        alert("获取数据失败，请重试");
+                    });
+            }
+
+            modal.show();
+        }
+
+        // 编辑安全须知
+        function editNotice(id) {
+            handleNewNotice(id);
+        }
+
+        // 处理文件移除
+        function clearFile() {
+            document.getElementById("voiceFile").value = "";
+            document.getElementById("voicePreview").innerHTML = "";
+        }
+
+        // 保存安全须知（支持文件上传和表单数据）
+        document.getElementById("noticeForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            const form = this;
+
+            if (!form.checkValidity()) {
+                e.stopPropagation();
+                return;
+            }
+
+            // 构建 FormData
+            const formData = new FormData(form);
+            const voiceFileInput = document.getElementById("voiceFile");
+
+            // 处理文件上传（若有新文件则添加到 FormData）
+            if (voiceFileInput.files.length > 0) {
+                formData.append("voiceFile", voiceFileInput.files[0]);
+            } else if (editMode) {
+                // 编辑时若未上传新文件，保留原有文件路径（需从后端获取原有数据，此处简化为直接取字段）
+                const originalVoiceFile = document.getElementById("id").value ?
+                    document.querySelector('[name="voiceFile"]').value : "";
+                if (originalVoiceFile) {
+                    formData.append("voiceFile", originalVoiceFile);
+                }
+            }
+
+            // 发送请求（POST/PUT）
+            const method = editMode ? "put" : "post";
+            const url = editMode ? NOTICE_API_URL + "/update" : NOTICE_API_URL + "/add";
+
+            axios({ method, url, data: formData })
+                .then(response => {
+                    console.log("操作成功:", response.data);
+                    alert("操作成功");
+                    resetModal();
+                    loadNotices();
+                })
+                .catch(error => {
+                    let errorMsg = "操作失败，请检查网络或参数";
+                    if (error.response?.status === 400) {
+                        errorMsg = "参数错误：" + (error.response.data || "必填项缺失或格式错误");
+                    }
+                    alert(errorMsg);
+                });
+        });
+
+        // 删除安全须知
+        function deleteNotice(id) {
+            if (confirm("确定要删除此安全须知吗？")) {
+                axios.delete(NOTICE_API_URL + "/delete/" + id)
+                    .then(() => {
+                        alert("删除成功");
+                        loadNotices();
+                    })
+                    .catch(error => {
+                        console.error("删除失败:", error);
+                        if (error.response?.status === 401) {
+                            return; // 响应拦截器已处理
+                        }
+                        alert("删除失败，请检查权限或网络连接");
+                    });
+            }
+        }
+
+        // 重置模态框
+        function resetModal() {
+            document.getElementById("noticeForm").reset();
+            document.getElementById("voicePreview").innerHTML = "";
+            bootstrap.Modal.getInstance(document.getElementById("noticeModal")).hide();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>应急演练管理系统</title>
+    <!-- 引入样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入 axios（用于接口请求） -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/axios/1.4.0/axios.min.js"></script>
+    <!-- 引入ECharts图表库 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.0/dist/echarts.min.js"></script>
+    <!-- 自定义样式 -->
+    <style>
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .sidebar-item-active {
+                @apply bg-primary/10 text-primary border-l-4 border-primary;
+            }
+            .card-shadow {
+                @apply shadow-md hover:shadow-lg transition-shadow duration-300;
+            }
+            .btn-primary {
+                @apply bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-md transition-all duration-200 shadow-md hover:shadow-lg;
+            }
+            .btn-secondary {
+                @apply bg-white border border-primary text-primary hover:bg-primary/5 font-medium py-2 px-4 rounded-md transition-all duration-200;
+            }
+            .form-input {
+                @apply w-full px-3 py-2 border border-light-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200;
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-light-1 text-dark min-h-screen flex flex-col">
+<!-- 顶部导航栏 -->
+<header class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="container mx-auto px-4">
+        <div class="flex items-center justify-between h-16">
+            <!-- 左侧标题 -->
+            <div class="flex items-center">
+                <span class="text-primary text-2xl font-bold">应急演练管理系统</span>
+            </div>
+            <!-- 右侧功能区 -->
+            <div class="flex items-center space-x-4">
+                <!-- 通知图标 -->
+                <div class="relative">
+                    <button class="flex items-center text-dark-2 hover:text-primary transition-colors duration-200">
+                        <i class="fa fa-bell-o text-lg mr-1"></i>
+                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
+                    </button>
+                </div>
+                <!-- 用户信息及登出 -->
+                <div class="flex items-center">
+                    <img src="https://picsum.photos/id/1005/200/200" alt="用户头像" class="h-8 w-8 rounded-full mr-2 object-cover">
+                    <span class="text-sm font-medium" id="userName">管理员</span>
+                    <i class="fa fa-angle-down ml-1 text-dark-2"></i>
+                    <!-- 登出按钮 -->
+                    <button
+                            class="ml-4 text-sm text-danger hover:text-danger/80"
+                            onclick="handleLogout()"
+                    >
+                        退出登录
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="flex flex-1 container mx-auto mt-4 px-4">
+    <!-- 侧边栏导航 -->
+    <aside class="w-64 bg-white rounded-lg shadow-md mr-4 h-[calc(100vh-5rem)] sticky top-20">
+        <nav class="py-4">
+            <div class="px-4 mb-4">
+                <h2 class="text-dark-2 text-sm font-medium uppercase tracking-wider">主菜单</h2>
+            </div>
+            <ul class="space-y-1">
+                <li>
+                    <a
+                            href="#dashboard"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-dashboard w-5 text-center mr-3"></i>
+                        <span>仪表盘</span>
+                    </a>
+                </li>
+                <li>
+                    <a
+                            href="/templates/drill-plan.html"
+                            class="flex items-center px-4 py-3 sidebar-item-active rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-calendar-check-o w-5 text-center mr-3"></i>
+                        <span>演练计划管理</span>
+                    </a>
+                </li>
+                <li>
+                    <a
+                            href="/templates/drill-task.html"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-tasks w-5 text-center mr-3"></i>
+                        <span>演练任务派发</span>
+                    </a>
+                </li>
+                <li>
+                    <a
+                            href="/templates/drill-task-log.html"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-play-circle-o w-5 text-center mr-3"></i>
+                        <span>演练任务日志</span>
+                    </a>
+                </li>
+
+                <li>
+                    <a
+                            href="/templates/drill-project.html"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-play-circle-o w-5 text-center mr-3"></i>
+                        <span>演练项目管理</span>
+                    </a>
+                </li>
+                <li>
+                    <a
+                            href="/templates/drill-evaluation.html"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-bar-chart w-5 text-center mr-3"></i>
+                        <span>演练评估反馈</span>
+                    </a>
+                </li>
+                <li>
+                    <a
+                            href="/templates/drill-satetynotice.html"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-book w-5 text-center mr-3"></i>
+                        <span>安全通知管理</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="px-4 mt-8 mb-4">
+                <h2 class="text-dark-2 text-sm font-medium uppercase tracking-wider">系统管理</h2>
+            </div>
+            <ul class="space-y-1">
+                <li>
+                    <a
+                            href="#systemSettings"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-cog w-5 text-center mr-3"></i>
+                        <span>系统设置</span>
+                    </a>
+                </li>
+                <li>
+                    <a
+                            href="/templates/sysuer.html"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-users w-5 text-center mr-3"></i>
+                        <span>用户管理</span>
+                    </a>
+                </li>
+                <li>
+                    <a
+                            href="/templates/sysdepartment.html"
+                            class="flex items-center px-4 py-3 text-dark-2 hover:bg-light-1 rounded-md transition-colors duration-200"
+                    >
+                        <i class="fa fa-sitemap w-5 text-center mr-3"></i>
+                        <span>部门管理</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- 主内容区域 -->
+    <main class="flex-1 bg-light-1 p-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-bold text-dark mb-4">欢迎使用应急演练管理系统</h2>
+            <p class="text-gray-600">请通过左侧导航栏访问各功能模块</p>
+
+            <!-- 图表区域 -->
+            <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 演练类型统计 -->
+                <div class="bg-light-1 rounded-lg p-4">
+                    <h3 class="text-lg font-medium text-dark mb-2">演练类型统计</h3>
+                    <div id="drillTypeChart" style="height: 300px;"></div>
+                </div>
+
+                <!-- 演练趋势分析 -->
+                <div class="bg-light-1 rounded-lg p-4">
+                    <h3 class="text-lg font-medium text-dark mb-2">演练趋势分析</h3>
+                    <div id="drillTrendChart" style="height: 300px;"></div>
+                </div>
+            </div>
+
+            <!-- 示例：动态加载数据区域 -->
+            <div class="mt-8" id="dynamicContent"></div>
+        </div>
+    </main>
+</div>
+
+<!-- 登录态校验 & 全局逻辑 -->
+<script>
+    // ----------------------
+    // 1. 全局变量 & 配置
+    // ----------------------
+    const CONTEXT_PATH = '/emergency-drill'; // 后端上下文路径（需与 application.yml 一致）
+    const API_URL = `http://localhost:8080${CONTEXT_PATH}/api`; // 接口基础路径
+    let drillTypeChart, drillTrendChart; // ECharts实例
+
+    // ----------------------
+    // 2. 登录态校验
+    // ----------------------
+    function checkLoginStatus() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('请先登录');
+            window.location.href = `${CONTEXT_PATH}/login.html`; // 绝对路径跳转登录页
+            return false;
+        }
+        return true;
+    }
+
+    // ----------------------
+    // 3. 全局请求拦截器（携带 token）
+    // ----------------------
+    function setupAxiosInterceptors() {
+        const token = localStorage.getItem('token');
+        if (token) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; // 认证头（根据后端要求调整）
+        }
+
+        // 响应拦截器：处理 401 错误
+        axios.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401) {
+                    alert('登录态失效，请重新登录');
+                    localStorage.clear(); // 清除失效凭证
+                    window.location.href = `${CONTEXT_PATH}/login.html`;
+                }
+                return Promise.reject(error);
+            }
+        );
+    }
+
+    // ----------------------
+    // 4. 登出功能
+    // ----------------------
+    function handleLogout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        alert('已成功退出登录');
+        window.location.href = `${CONTEXT_PATH}/login.html`;
+    }
+
+    // ----------------------
+    // 5. 页面初始化
+    // ----------------------
+    (function init() {
+        // 校验登录态
+        if (!checkLoginStatus()) return;
+
+        // 初始化请求拦截器
+        setupAxiosInterceptors();
+
+        // 初始化图表
+        initCharts();
+
+        // 示例：获取用户信息并显示
+        fetchUserInfo();
+    })();
+
+    // ----------------------
+    // 6. 示例接口：获取用户信息
+    // ----------------------
+    function fetchUserInfo() {
+        axios.get(`${API_URL}/sysUser/info`)
+            .then((response) => {
+                const user = response.data.data;
+                document.getElementById('userName').textContent = user.realName || '管理员'; // 显示用户名
+            })
+            .catch((error) => {
+                console.error('获取用户信息失败:', error);
+                if (error.response?.status === 401) {
+                    handleLogout();
+                }
+            });
+    }
+
+    // ----------------------
+    // 7. 图表初始化函数
+    // ----------------------
+    function initCharts() {
+        // 初始化演练类型图表
+        drillTypeChart = echarts.init(document.getElementById('drillTypeChart'));
+        drillTypeChart.setOption({
+            title: {
+                text: '演练类型分布',
+                left: 'center'
+            },
+            tooltip: {
+                trigger: 'item',
+                formatter: '{a} <br/>{b}: {c} ({d}%)'
+            },
+            legend: {
+                orient: 'vertical',
+                left: 'left',
+                data: ['消防演练', '地震演练', '医疗急救', '防汛演练', '其他']
+            },
+            series: [
+                {
+                    name: '演练次数',
+                    type: 'pie',
+                    radius: ['30%', '70%'],
+                    data: [
+                        {value: 35, name: '消防演练'},
+                        {value: 25, name: '地震演练'},
+                        {value: 20, name: '医疗急救'},
+                        {value: 15, name: '防汛演练'},
+                        {value: 5, name: '其他'}
+                    ],
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    }
+                }
+            ]
+        });
+
+        // 初始化演练趋势图表
+        drillTrendChart = echarts.init(document.getElementById('drillTrendChart'));
+        drillTrendChart.setOption({
+            title: {
+                text: '近6个月演练次数趋势',
+                left: 'center'
+            },
+            tooltip: {
+                trigger: 'axis'
+            },
+            xAxis: {
+                type: 'category',
+                data: ['1月', '2月', '3月', '4月', '5月', '6月']
+            },
+            yAxis: {
+                type: 'value'
+            },
+            series: [
+                {
+                    name: '实际演练',
+                    data: [12, 15, 18, 16, 22, 25],
+                    type: 'line',
+                    smooth: true
+                },
+                {
+                    name: '计划演练',
+                    data: [15, 18, 20, 19, 24, 28],
+                    type: 'line',
+                    smooth: true
+                }
+            ]
+        });
+
+        // 窗口 resize 时自适应
+        window.addEventListener('resize', () => {
+            drillTypeChart.resize();
+            drillTrendChart.resize();
+        });
+    }
+
+    // ----------------------
+    // 8. 其他业务逻辑（可扩展）
+    // ----------------------
+    // 示例：动态加载演练计划列表
+    function fetchDrillPlans() {
+        axios.get(`${API_URL}/drillPlan/list`)
+            .then((response) => {
+                const plans = response.data.data;
+                const content = plans.map((plan) => `
+                        <div class="mt-4 p-4 bg-primary/10 rounded-md">
+                            <h3 class="text-lg font-medium">${plan.planName}</h3>
+                            <p class="text-gray-600">创建时间：${plan.createTime}</p>
+                        </div>
+                    `).join('');
+                document.getElementById('dynamicContent').innerHTML = content;
+            })
+            .catch((error) => {
+                console.error('获取演练计划失败:', error);
+            });
+    }
+</script>
+</body>
+</html>

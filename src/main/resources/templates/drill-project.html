@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>演练项目管理</title>
+    <!-- 引入 Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container { max-width: 1200px; margin: 0 auto; }
+        .form-container { padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px; }
+        .table-container { margin-top: 20px; }
+        .status-tag {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            color: white;
+        }
+        .status-active { background-color: #28a745; } /* 启用 */
+        .status-inactive { background-color: #dc3545; } /* 禁用 */
+        .invalid-feedback { display: block; }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            display: none;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 4px solid #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-4 mb-4">演练项目管理</h1>
+
+    <!-- 加载中遮罩 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- 搜索/筛选栏 -->
+    <div class="form-container">
+        <div class="row align-items-center">
+            <div class="col-md-4 mb-3">
+                <label for="searchName" class="form-label">搜索项目名称</label>
+                <input type="text" class="form-control" id="searchName" placeholder="请输入项目名称">
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="statusFilter" class="form-label">状态过滤</label>
+                <select class="form-control" id="statusFilter">
+                    <option value="">全部状态</option>
+                    <option value="1">启用</option>
+                    <option value="0">禁用</option>
+                </select>
+            </div>
+            <div class="col-md-5 text-end">
+                <button type="button" class="btn btn-primary me-2" onclick="openAddModal()">
+                    <i class="fa fa-plus"></i> 新增项目
+                </button>
+                <button type="button" class="btn btn-warning me-2" onclick="batchToggleStatus(1)">
+                    <i class="fa fa-check"></i> 批量启用
+                </button>
+                <button type="button" class="btn btn-danger" onclick="batchToggleStatus(0)">
+                    <i class="fa fa-ban"></i> 批量禁用
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目列表 -->
+    <div class="table-container">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th><input type="checkbox" id="selectAll"></th>
+                <th>ID</th>
+                <th>项目名称</th>
+                <th>描述</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="projectTableBody"></tbody>
+        </table>
+
+        <!-- 分页控件 -->
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center" id="pagination"></ul>
+        </nav>
+    </div>
+
+    <!-- 新增/编辑模态框 -->
+    <div class="modal fade" id="projectModal" tabindex="-1" aria-labelledby="projectModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="projectForm" class="px-4 py-3 needs-validation" novalidate>
+                    <input type="hidden" id="id">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="projectModalLabel">新增演练项目</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="projectName" class="form-label">项目名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="projectName" required minlength="2" maxlength="50">
+                            <div class="invalid-feedback">请输入2-50字的项目名称</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="projectDesc" class="form-label">项目描述</label>
+                            <textarea class="form-control" id="projectDesc" rows="3" maxlength="200"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入 JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"></script>
+    <script>
+        // ----------------------
+        // 全局配置
+        // ----------------------
+        const API_URL = "http://localhost:8080/emergency-drill/api/drillProject";
+        let currentPage = 1;
+        let pageSize = 10;
+        let totalPages = 1;
+        let selectedIds = [];
+
+        // ----------------------
+        // 登录态校验 & 全局认证头
+        // ----------------------
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('请先登录');
+            window.location.href = 'login.html'; // 跳转登录页
+        } else {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; // 设置全局 token
+        }
+
+        // ----------------------
+        // 响应拦截器：统一处理 401 错误
+        // ----------------------
+        axios.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401) {
+                    alert('登录态失效，请重新登录');
+                    localStorage.clear(); // 清除失效凭证
+                    window.location.href = 'login.html';
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        // 显示加载中
+        function showLoading() {
+            document.getElementById("loadingOverlay").style.display = "flex";
+        }
+
+        // 隐藏加载中
+        function hideLoading() {
+            document.getElementById("loadingOverlay").style.display = "none";
+        }
+
+        // 页面加载时初始化
+        window.onload = () => {
+            loadProjects();
+            initEventListeners();
+        };
+
+        // 加载项目列表
+        function loadProjects() {
+            showLoading(); // 显示加载中
+            const searchName = document.getElementById("searchName").value;
+            const statusFilter = document.getElementById("statusFilter").value;
+
+            axios.get(API_URL + "/list", {
+                params: {
+                    pageNum: currentPage,
+                    pageSize: pageSize,
+                    projectName: searchName,
+                    isActive: statusFilter === "" ? null : statusFilter
+                }
+            })
+                .then(response => {
+                    const data = response.data;
+                    const projects = data.records || [];
+                    totalPages = data.pages || 1;
+
+                    renderTable(projects);
+                    renderPagination();
+                })
+                .catch(error => {
+                    console.error("加载项目失败:", error);
+                    alert("数据加载失败，请检查网络连接");
+                })
+                .finally(() => {
+                    hideLoading(); // 隐藏加载中
+                });
+        }
+
+        // 渲染表格
+        function renderTable(projects) {
+            const tbody = document.getElementById("projectTableBody");
+            tbody.innerHTML = "";
+
+            projects.forEach(project => {
+                const statusClass = project.isActive === 1 ? "status-active" : "status-inactive";
+                const statusText = project.isActive === 1 ? "启用" : "禁用";
+
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td><input type="checkbox" class="select-item" value="${project.id}"></td>
+                    <td>${project.id}</td>
+                    <td>${project.projectName}</td>
+                    <td>${project.projectDesc || "无"}</td>
+                    <td><span class="status-tag ${statusClass}">${statusText}</span></td>
+                    <td>${new Date(project.createTime).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info me-2" onclick="editProject(${project.id})">
+                            <i class="fa fa-edit"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-${project.isActive ? "warning" : "success"}"
+                                onclick="toggleStatus(${project.id}, ${project.isActive === 1 ? 0 : 1})">
+                            <i class="fa fa-${project.isActive ? "ban" : "check"}"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteProject(${project.id})">
+                            <i class="fa fa-trash"></i> 删除
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // 渲染分页
+        function renderPagination() {
+            const pagination = document.getElementById("pagination");
+            pagination.innerHTML = "";
+
+            for (let i = 1; i <= totalPages; i++) {
+                const li = document.createElement("li");
+                li.className = `page-item ${i === currentPage ? "active" : ""}`;
+                li.innerHTML = `
+                    <a class="page-link" href="javascript:void(0)" onclick="changePage(${i})">
+                        ${i}
+                    </a>
+                `;
+                pagination.appendChild(li);
+            }
+        }
+
+        // 切换页码
+        function changePage(page) {
+            currentPage = page;
+            loadProjects();
+        }
+
+        // 初始化事件监听
+        function initEventListeners() {
+            // 全选/取消全选
+            document.getElementById("selectAll").addEventListener("change", function() {
+                const checkboxes = document.querySelectorAll(".select-item");
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                updateSelectedIds();
+            });
+
+            // 单个选择框变化
+            document.addEventListener("change", (e) => {
+                if (e.target.classList.contains("select-item")) {
+                    updateSelectedIds();
+                }
+            });
+
+            // 表单提交
+            document.getElementById("projectForm").addEventListener("submit", (e) => {
+                e.preventDefault();
+                if (!e.target.checkValidity()) {
+                    return;
+                }
+                saveProject();
+            });
+        }
+
+        // 更新选中ID
+        function updateSelectedIds() {
+            selectedIds = Array.from(document.querySelectorAll(".select-item:checked"))
+                .map(checkbox => parseInt(checkbox.value));
+        }
+
+        // 打开新增/编辑模态框
+        function openAddModal(isEdit = false, project = null) {
+            const modal = new bootstrap.Modal(document.getElementById("projectModal"));
+            document.getElementById("projectForm").reset();
+            document.getElementById("projectForm").classList.remove("was-validated");
+            document.getElementById("id").value = "";
+
+            if (isEdit && project) {
+                document.getElementById("projectModalLabel").textContent = "编辑演练项目";
+                document.getElementById("id").value = project.id;
+                document.getElementById("projectName").value = project.projectName;
+                document.getElementById("projectDesc").value = project.projectDesc;
+            } else {
+                document.getElementById("projectModalLabel").textContent = "新增演练项目";
+            }
+
+            modal.show();
+        }
+
+        // 保存项目
+        function saveProject() {
+            const formData = {
+                id: document.getElementById("id").value,
+                projectName: document.getElementById("projectName").value,
+                projectDesc: document.getElementById("projectDesc").value,
+                isActive: 1 // 新增/编辑时默认启用，状态通过单独接口切换
+            };
+
+            const url = formData.id ? `${API_URL}/update` : `${API_URL}/add`;
+            const method = formData.id ? "put" : "post";
+
+            axios({ method, url, data: formData })
+                .then(() => {
+                    alert("操作成功");
+                    document.getElementById("projectModal").querySelector(".btn-close").click();
+                    loadProjects();
+                })
+                .catch(error => {
+                    console.error("操作失败:", error);
+                    alert("操作失败，请检查输入内容或网络连接");
+                });
+        }
+
+        // 编辑项目
+        function editProject(id) {
+            axios.get(`${API_URL}/get/${id}`)
+                .then(response => {
+                    openAddModal(true, response.data);
+                })
+                .catch(error => {
+                    console.error("获取项目失败:", error);
+                    alert("获取项目信息失败，请重试");
+                });
+        }
+
+        // 切换单个项目状态
+        function toggleStatus(id, active) {
+            axios.put(`${API_URL}/toggleStatus/${id}/${active}`)
+                .then(() => {
+                    alert("状态切换成功");
+                    loadProjects();
+                })
+                .catch(error => {
+                    console.error("状态切换失败:", error);
+                    alert("状态切换失败，请检查权限");
+                });
+        }
+
+        // 批量切换状态
+        function batchToggleStatus(active) {
+            if (selectedIds.length === 0) {
+                alert("请先选择项目");
+                return;
+            }
+            if (confirm(`确定要${active ? "启用" : "禁用"}选中的 ${selectedIds.length} 个项目吗？`)) {
+                selectedIds.forEach(id => {
+                    toggleStatus(id, active);
+                });
+            }
+        }
+
+        // 删除项目
+        function deleteProject(id) {
+            if (confirm("确定要删除此项目吗？")) {
+                axios.delete(`${API_URL}/delete/${id}`)
+                    .then(() => {
+                        alert("删除成功");
+                        loadProjects();
+                    })
+                    .catch(error => {
+                        console.error("删除失败:", error);
+                        alert("删除失败，请检查权限或网络连接");
+                    });
+            }
+        }
+
+        // 搜索/过滤
+        document.getElementById("searchName").addEventListener("input", loadProjects);
+        document.getElementById("statusFilter").addEventListener("change", loadProjects);
+    </script>
+</div>
+</body>
+</html>

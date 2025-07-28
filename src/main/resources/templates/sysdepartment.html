@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>部门管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container { max-width: 1200px; margin: 0 auto; }
+        .form-container { padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px; }
+        .table-container { margin-top: 20px; }
+        /* 树状结构样式 */
+        .tree-line { position: relative; }
+        .tree-line::before { content: ''; position: absolute; left: -16px; top: 0; height: 100%; border-left: 1px dashed #dee2e6; }
+        .tree-node::before { content: ''; position: absolute; left: -16px; top: 10px; width: 10px; border-top: 1px dashed #dee2e6; }
+        .node-icon { margin-right: 8px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-4 mb-4">部门管理</h1>
+
+    <!-- 新增/编辑部门表单 -->
+    <div class="form-container">
+        <button
+                type="button"
+                class="btn btn-primary mb-3"
+                data-bs-toggle="modal"
+                data-bs-target="#deptModal"
+                onclick="handleNewDept()"
+        >
+            新增部门
+        </button>
+
+        <!-- 部门模态框 -->
+        <div class="modal fade" id="deptModal" tabindex="-1" aria-labelledby="deptModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form id="deptForm" class="px-4 py-3 needs-validation" novalidate>
+                        <input type="hidden" id="deptId">
+                        <input type="hidden" name="createBy" value="admin"> <!-- 后续需改为动态用户 -->
+
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="deptModalLabel">部门管理</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="deptName" class="form-label">部门名称</label>
+                                <input
+                                        type="text"
+                                        class="form-control"
+                                        id="deptName"
+                                        required
+                                        placeholder="请输入部门名称"
+                                >
+                                <div class="invalid-feedback">请输入部门名称</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="parentId" class="form-label">上级部门</label>
+                                <select
+                                        class="form-control"
+                                        id="parentId"
+                                >
+                                    <option value="">请选择上级部门</option>
+                                    <!-- 上级部门数据需通过接口动态加载 -->
+                                </select>
+                                <div class="invalid-feedback">请选择上级部门</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="contactPerson" class="form-label">负责人</label>
+                                <input
+                                        type="text"
+                                        class="form-control"
+                                        id="contactPerson"
+                                        placeholder="请输入负责人姓名"
+                                >
+                            </div>
+                            <div class="mb-3">
+                                <label for="contactPhone" class="form-label">联系电话</label>
+                                <input
+                                        type="tel"
+                                        class="form-control"
+                                        id="contactPhone"
+                                        pattern="[0-9]{11}"
+                                        placeholder="请输入11位联系电话"
+                                >
+                                <div class="invalid-feedback">请输入有效联系电话</div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="submit" class="btn btn-primary" id="saveDeptBtn">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 部门列表 -->
+    <div class="table-container">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>部门名称</th>
+                <th>上级部门</th>
+                <th>负责人</th>
+                <th>联系电话</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="deptTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- 引入 JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
+    <script>
+        // ----------------------
+        // 全局配置
+        // ----------------------
+        const API_URL = "http://localhost:8080/emergency-drill/api/departments"; // 注意路径改为复数形式
+        let editMode = false;
+        let parentDepts = []; // 存储上级部门数据
+
+        // ----------------------
+        // 登录态校验 & 全局认证头
+        // ----------------------
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('请先登录');
+            window.location.href = 'login.html'; // 跳转登录页
+        } else {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; // 设置全局 token
+        }
+
+        // ----------------------
+        // 响应拦截器：处理 401 错误
+        // ----------------------
+        axios.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401) {
+                    alert('登录态失效，请重新登录');
+                    localStorage.clear(); // 清除失效凭证
+                    window.location.href = 'login.html';
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        // ----------------------
+        // 上级部门数据加载（用于下拉框）
+        // ----------------------
+        function loadParentDepartments() {
+            axios.get(API_URL) // 直接请求根路径获取列表
+                .then(response => {
+                    parentDepts = response.data.data || [];
+                    const parentSelect = document.getElementById("parentId");
+                    parentSelect.innerHTML = '<option value="">请选择上级部门</option>';
+
+                    parentDepts.forEach(dept => {
+                        parentSelect.innerHTML += `<option value="${dept.id}">${dept.deptName}</option>`;
+                    });
+                })
+                .catch(error => {
+                    console.error("加载上级部门失败:", error);
+                });
+        }
+
+        // ----------------------
+        // 部门列表初始化
+        // ----------------------
+        function initDeptTable() {
+            axios.get(API_URL) // 直接请求根路径获取列表
+                .then(response => {
+                    const deptData = response.data.data || [];
+                    const tbody = document.getElementById("deptTableBody");
+                    tbody.innerHTML = "";
+
+                    deptData.forEach(dept => {
+                        const parentDeptName = parentDepts.find(d => d.id === dept.parentId)?.deptName || "无";
+                        const createTime = new Date(dept.createTime).toLocaleString(); // 格式化日期
+                        tbody.appendChild(createDeptTableRow(dept, parentDeptName, createTime));
+                    });
+                })
+                .catch(error => {
+                    console.error("加载部门失败:", error);
+                });
+        }
+
+        // ----------------------
+        // 创建表格行
+        // ----------------------
+        function createDeptTableRow(dept, parentDeptName, createTime) {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${dept.id}</td>
+                <td>${dept.deptName}</td>
+                <td>${parentDeptName}</td>
+                <td>${dept.contactPerson || '-'}</td>
+                <td>${dept.contactPhone || '-'}</td>
+                <td>${createTime}</td>
+                <td>
+                    <button class="btn btn-sm btn-info me-2" onclick="editDept(${dept.id})">编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteDept(${dept.id})">删除</button>
+                </td>
+            `;
+            return row;
+        }
+
+        // ----------------------
+        // 打开新增/编辑模态框
+        // ----------------------
+        function handleNewDept() {
+            editMode = false;
+            resetDeptForm();
+            openDeptModal("新增部门");
+        }
+
+        function editDept(id) {
+            axios.get(`${API_URL}/${id}`) // 直接获取单个部门
+                .then(response => {
+                    const dept = response.data.data;
+                    openDeptModal("编辑部门", dept);
+                })
+                .catch(error => {
+                    console.error("获取部门失败:", error);
+                });
+        }
+
+        // ----------------------
+        // 保存部门
+        // ----------------------
+        document.getElementById("deptForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            if (!this.checkValidity()) {
+                e.stopPropagation();
+                return;
+            }
+
+            // 构建部门对象
+            const deptData = {
+                id: document.getElementById("deptId").value,
+                deptName: document.getElementById("deptName").value,
+                parentId: document.getElementById("parentId").value,
+                contactPerson: document.getElementById("contactPerson").value,
+                contactPhone: document.getElementById("contactPhone").value
+            };
+
+            const method = editMode ? "put" : "post";
+            const url = editMode ? `${API_URL}/${deptData.id}` : API_URL;
+
+            axios({ method, url, data: deptData })
+                .then(() => {
+                    alert("操作成功");
+                    resetDeptModal();
+                    initDeptTable();
+                })
+                .catch(error => {
+                    let msg = "操作失败，请检查网络或参数";
+                    if (error.response?.status === 400 && error.response.data.message.includes("唯一约束")) {
+                        msg = "部门名称已存在，请更换";
+                    }
+                    alert(msg);
+                });
+        });
+
+        // ----------------------
+        // 删除部门
+        // ----------------------
+        function deleteDept(id) {
+            if (confirm("确定要删除此部门吗？")) {
+                axios.delete(`${API_URL}/${id}`) // 使用DELETE方法
+                    .then(() => {
+                        alert("删除成功");
+                        initDeptTable();
+                    })
+                    .catch(error => {
+                        console.error("删除失败:", error);
+                        if (error.response?.status === 400) {
+                            alert("无法删除，该部门下有子部门或员工");
+                        }
+                    });
+            }
+        }
+
+        // ----------------------
+        // 重置模态框和表单
+        // ----------------------
+        function resetDeptModal() {
+            editMode = false;
+            document.getElementById("deptForm").reset();
+            bootstrap.Modal.getInstance(document.getElementById("deptModal")).hide();
+        }
+
+        function resetDeptForm() {
+            document.getElementById("parentId").value = "";
+        }
+
+        // ----------------------
+        // 页面初始化
+        // ----------------------
+        window.onload = () => {
+            loadParentDepartments();
+            initDeptTable();
+        };
+    </script>
+</div>
+</body>
+</html>

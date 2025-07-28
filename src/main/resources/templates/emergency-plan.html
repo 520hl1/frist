@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>应急预案管理</title>
+    <!-- 引入 Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container { max-width: 1200px; margin: 0 auto; }
+        .form-container { padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px; }
+        .table-container { margin-top: 20px; }
+        .status-tag {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .status-1 { background-color: #28a745; color: white; } /* 有效 */
+        .status-0 { background-color: #dc3545; color: white; } /* 失效 */
+        .file-preview { margin-top: 10px; color: #6c757d; }
+        /* 表单验证样式 */
+        .invalid-feedback { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-4 mb-4">应急预案管理</h1>
+
+    <!-- 新增/编辑预案表单 -->
+    <div class="form-container">
+        <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#planModal">
+            新增应急预案
+        </button>
+
+        <!-- 预案模态框 -->
+        <div class="modal fade" id="planModal" tabindex="-1" aria-labelledby="planModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form id="planForm" class="px-4 py-3 needs-validation" novalidate enctype="multipart/form-data">
+                        <input type="hidden" id="id">
+                        <input type="hidden" name="createBy" value="admin"> <!-- 后续需改为动态用户 -->
+
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="planModalLabel">应急预案管理</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label for="planCode" class="form-label">预案编号</label>
+                                <input type="text" class="form-control" id="planCode" required minlength="3" maxlength="20">
+                                <div class="invalid-feedback">请输入3-20位预案编号</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="planName" class="form-label">预案名称</label>
+                                <input type="text" class="form-control" id="planName" required minlength="2" maxlength="50">
+                                <div class="invalid-feedback">请输入2-50位预案名称</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="planType" class="form-label">预案类型</label>
+                                <select class="form-control" id="planType" required>
+                                    <option value="">请选择类型</option>
+                                    <option value="火灾事故">火灾事故</option>
+                                    <option value="地震灾害">地震灾害</option>
+                                    <option value="危险化学品泄漏">危险化学品泄漏</option>
+                                    <option value="其他">其他</option>
+                                </select>
+                                <div class="invalid-feedback">请选择预案类型</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="deptId" class="form-label">负责部门</label>
+                                <select class="form-control" id="deptId" required>
+                                    <option value="">请选择部门</option>
+                                    <!-- 部门数据动态加载 -->
+                                </select>
+                                <div class="invalid-feedback">请选择负责部门</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="planContent" class="form-label">预案内容</label>
+                                <textarea class="form-control" id="planContent" rows="3" required minlength="50"></textarea>
+                                <div class="invalid-feedback">请输入至少50字的预案内容</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="planFile" class="form-label">预案文件</label>
+                                <input type="file" class="form-control" id="planFile" accept=".pdf,.doc,.docx">
+                                <div class="file-preview" id="filePreview"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="status" class="form-label">状态</label>
+                                <select class="form-control" id="status" required>
+                                    <option value="1">有效</option>
+                                    <option value="0">失效</option>
+                                </select>
+                                <div class="invalid-feedback">请选择预案状态</div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="submit" class="btn btn-primary" id="savePlanBtn">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 预案列表 -->
+    <div class="table-container">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>预案编号</th>
+                <th>预案名称</th>
+                <th>类型</th>
+                <th>负责部门</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody id="planTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- 引入 JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
+    <script>
+        // 全局变量
+        const API_URL = "http://localhost:8080/emergency-drill/api/emergencyPlan";
+        const DEPT_API_URL = "http://localhost:8080/emergency-drill/api/departments";
+        let editMode = false; // 编辑模式标记
+        let departments = []; // 部门数据
+        let selectedFile = null; // 选中的文件
+
+        // ----------------------
+        // 登录态校验 & 全局认证头
+        // ----------------------
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('请先登录');
+            window.location.href = 'login.html'; // 跳转登录页
+        } else {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; // 设置全局 token
+        }
+
+        // ----------------------
+        // 响应拦截器：处理 401 错误
+        // ----------------------
+        axios.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response?.status === 401) {
+                    alert('登录态失效，请重新登录');
+                    localStorage.clear(); // 清除失效凭证
+                    window.location.href = 'login.html';
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        // ----------------------
+        // 加载部门数据
+        // ----------------------
+        function loadDepartments() {
+            axios.get(DEPT_API_URL)
+                .then(response => {
+                    departments = response.data.data;
+                    const deptSelect = document.getElementById("deptId");
+                    deptSelect.innerHTML = '<option value="">请选择部门</option>';
+                    departments.forEach(dept => {
+                        deptSelect.innerHTML += `<option value="${dept.id}">${dept.deptName}</option>`;
+                    });
+                })
+                .catch(error => {
+                    console.error("加载部门失败:", error);
+                    alert("加载部门数据失败，请刷新页面");
+                });
+        }
+
+        // ----------------------
+        // 初始化表格
+        // ----------------------
+        function initTable() {
+            axios.get(API_URL + "/list")
+                .then(response => {
+                    const plans = response.data;
+                    const tbody = document.getElementById("planTableBody");
+                    tbody.innerHTML = ""; // 清空表格
+
+                    plans.forEach(plan => {
+                        const deptName = departments.find(d => d.id === plan.deptId)?.deptName || "未分配";
+                        const statusClass = plan.status === 1 ? "status-1" : "status-0";
+                        const statusText = plan.status === 1 ? "有效" : "失效";
+
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td>${plan.id}</td>
+                            <td>${plan.planCode}</td>
+                            <td>${plan.planName}</td>
+                            <td>${plan.planType}</td>
+                            <td>${deptName}</td>
+                            <td><span class="status-tag ${statusClass}">${statusText}</span></td>
+                            <td>${new Date(plan.createTime).toLocaleString()}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info me-2" onclick="editPlan(${plan.id})">编辑</button>
+                                <button class="btn btn-sm btn-danger" onclick="deletePlan(${plan.id})">删除</button>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                })
+                .catch(error => console.error("获取预案列表失败:", error));
+        }
+
+        // ----------------------
+        // 文件预览
+        // ----------------------
+        function previewFile(input) {
+            const preview = document.getElementById("filePreview");
+            preview.innerHTML = "";
+            if (input.files && input.files[0]) {
+                selectedFile = input.files[0];
+                preview.innerHTML = `<span>已选择文件: ${selectedFile.name}</span>`;
+            } else {
+                selectedFile = null;
+                preview.innerHTML = "";
+            }
+        }
+
+        // ----------------------
+        // 打开模态框
+        // ----------------------
+        function openModal(title, plan = null) {
+            const modal = new bootstrap.Modal(document.getElementById("planModal"));
+            const form = document.getElementById("planForm");
+            form.reset();
+            editMode = !!plan;
+            document.getElementById("filePreview").innerHTML = ""; // 清空文件预览
+
+            if (plan) {
+                document.getElementById("id").value = plan.id;
+                document.getElementById("planCode").value = plan.planCode;
+                document.getElementById("planName").value = plan.planName;
+                document.getElementById("planType").value = plan.planType;
+                document.getElementById("deptId").value = plan.deptId || ""; // 填充部门ID
+                document.getElementById("planContent").value = plan.planContent;
+                document.getElementById("status").value = plan.status.toString();
+                // 显示原有文件路径（若有）
+                if (plan.planFile) {
+                    document.getElementById("filePreview").innerHTML =
+                        `<span>现有文件: ${plan.planFile.split('/').pop()}</span><br><small>重新上传文件将覆盖原有路径</small>`;
+                }
+            }
+
+            document.getElementById("planModalLabel").textContent = title;
+            modal.show();
+        }
+
+        // ----------------------
+        // 保存预案
+        // ----------------------
+        document.getElementById("planForm").addEventListener("submit", function(e) {
+            e.preventDefault();
+            const form = this;
+
+            // 表单验证
+            if (!form.checkValidity()) {
+                e.stopPropagation();
+                form.classList.add('was-validated');
+                return;
+            }
+
+            const formData = new FormData(form);
+            const url = editMode ? `${API_URL}/update` : `${API_URL}/add`;
+            const method = editMode ? "put" : "post";
+
+            // 处理文件上传（编辑时若未选择新文件则保留原有文件）
+            if (editMode && !selectedFile) {
+                formData.delete("planFile"); // 不提交文件字段，避免覆盖
+            }
+
+            axios({
+                method: method,
+                url: url,
+                data: formData,
+            })
+                .then(() => {
+                    alert("操作成功");
+                    resetModal();
+                    initTable();
+                })
+                .catch(error => {
+                    let errorMsg = "操作失败，请检查网络或参数";
+                    if (error.response?.status === 400) {
+                        errorMsg = "参数错误：" + (error.response.data || "必填项缺失或格式错误");
+                    }
+                    alert(errorMsg);
+                });
+        });
+
+        // ----------------------
+        // 编辑预案
+        // ----------------------
+        function editPlan(id) {
+            axios.get(`${API_URL}/get/${id}`)
+                .then(response => {
+                    openModal("编辑应急预案", response.data);
+                })
+                .catch(error => {
+                    console.error("获取预案详情失败:", error);
+                    alert("获取预案详情失败，请重试");
+                });
+        }
+
+        // ----------------------
+        // 删除预案
+        // ----------------------
+        function deletePlan(id) {
+            if (confirm("确定要删除此预案吗？")) {
+                axios.delete(`${API_URL}/delete/${id}`)
+                    .then(() => {
+                        alert("删除成功");
+                        initTable();
+                    })
+                    .catch(error => {
+                        console.error("删除失败:", error);
+                        alert("删除失败，请检查权限或网络连接");
+                    });
+            }
+        }
+
+        // ----------------------
+        // 重置模态框
+        // ----------------------
+        function resetModal() {
+            editMode = false;
+            document.getElementById("planForm").reset();
+            document.getElementById("filePreview").innerHTML = "";
+            bootstrap.Modal.getInstance(document.getElementById("planModal")).hide();
+        }
+
+        // ----------------------
+        // 页面初始化
+        // ----------------------
+        window.onload = () => {
+            loadDepartments(); // 加载部门数据
+            initTable(); // 初始化表格
+        };
+    </script>
+</div>
+</body>
+</html>
